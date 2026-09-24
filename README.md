@@ -99,6 +99,22 @@ only. After manager restart + fresh brute force, 100100 fired at level 10
 ![100100 fired](screenshots/12-custom-100100-alerts.png)
 ![Alert detail](screenshots/13-custom-alert-detail.png)
 
+## Threshold rationale and false positives
+
+**Why 5 in 60s:** a human mistypes ~1–3 passwords, then succeeds or stops;
+scripted guessing does dozens per minute. 5 catches automation fast in a
+quiet lab without flagging one fat-fingered session. Stock sshd aggregate
+(5712) uses 8 in 120s — stricter, tuned for busy servers; 5/60 validates
+faster against a near-zero baseline. Rule source: [`detections/local_rules.xml`](detections/local_rules.xml).
+
+**Known false positives:**
+- Legit user retrying 5× in a minute (wrong layout, expired password) → L10 on a human. Mitigate with an allowlist for known users/hosts, or correlate with a subsequent successful login.
+- Automation with a stale key (ansible/CI, monitoring logins) retrying on schedule. Mitigate by allowlisting automation source IPs.
+- **Scope flaw (accepted in lab):** the rule has no `<same_source_ip />`, so the count is global — 5 users failing once each across 5 hosts would fire it. Fine with one victim; production needs per-source scoping.
+- **No `ignore` window:** a sustained brute emits one alert per 5 events (we saw 4 in one run). Add `ignore="60"` after tuning to cut duplicates.
+
+**Tuning loop:** run one week, compare 100100 hits against confirmed incidents, then adjust frequency/timeframe.
+
 ## MITRE mapping
 
 | Rule | Event | Technique |
